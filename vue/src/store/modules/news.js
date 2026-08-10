@@ -38,13 +38,7 @@ export const useNewsStore = defineStore('news', {
         console.error('获取新闻分类失败:', error);
         // 设置默认分类，以防API请求失败
         this.categories = [
-          { id: 1, name: '头条' },
-          { id: 2, name: '社会' },
-          { id: 3, name: '国内' },
-          { id: 4, name: '国际' },
-          { id: 5, name: '娱乐' },
-          { id: 6, name: '体育' },
-          { id: 7, name: '科技' }
+        
         ];
       } finally {
         this.categoriesLoading = false;
