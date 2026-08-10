@@ -1,0 +1,49 @@
+# Frontend / Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend build and tooling output
+dist/
+build/
+.nuxt/
+.vite/
+.cache/
+coverage/
+
+# Environment files (keep committed examples)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+pip-wheel-metadata/
+
+# IDE and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
