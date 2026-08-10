@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
@@ -45,3 +45,31 @@ def test_error_response_is_not_converted_to_a_success_response() -> None:
 
     assert response.status_code == 400
     assert response.json() == {"detail": "invalid request"}
+
+
+def test_missing_api_route_uses_code_404() -> None:
+    test_app = FastAPI()
+    test_app.add_middleware(ApiResponseMiddleware)
+
+    response = TestClient(test_app).get("/api/missing")
+
+    assert response.status_code == 200
+    assert response.json() == {"code": 404, "message": "Not Found", "data": None}
+
+
+def test_missing_api_data_uses_code_404() -> None:
+    test_app = FastAPI()
+    test_app.add_middleware(ApiResponseMiddleware)
+
+    @test_app.get("/api/news/{news_id}")
+    async def get_news(news_id: int) -> None:
+        raise HTTPException(status_code=404, detail=f"News {news_id} not found")
+
+    response = TestClient(test_app).get("/api/news/42")
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "code": 404,
+        "message": "News 42 not found",
+        "data": None,
+    }

@@ -1,9 +1,9 @@
 """Data access methods for the news API module."""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.news_category import NewsCategory
+from app.models.news import News, NewsCategory
 
 
 class NewsRepository:
@@ -11,6 +11,34 @@ class NewsRepository:
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def list_news(
+        self,
+        *,
+        category_id: int | None,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[News], int]:
+        """Return one page of news for a category and the matching total."""
+        base_query = select(News)
+        if category_id not in (None, 0):
+            base_query = base_query.where(News.category_id == category_id)
+
+        total_result = await self.db.execute(
+            select(func.count()).select_from(base_query.subquery())
+        )
+        total = total_result.scalar_one()
+
+        result = await self.db.execute(
+            base_query.order_by(News.publish_time.desc(), News.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        return list(result.scalars().all()), total
+
+    async def get_news_by_id(self, news_id: int) -> News | None:
+        """Return one news article by primary key, if it exists."""
+        return await self.db.get(News, news_id)
 
     async def list_categories(self) -> list[NewsCategory]:
         """Return all news categories in display order."""

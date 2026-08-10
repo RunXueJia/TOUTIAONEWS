@@ -191,7 +191,7 @@ const onRefresh = () => {
 
 // 上拉加载更多
 const onLoad = () => {
-  // newsStore.getNewsList()
+  newsStore.getNewsList()
 }
 
 // 切换分类

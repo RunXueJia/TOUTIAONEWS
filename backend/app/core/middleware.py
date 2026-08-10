@@ -27,6 +27,9 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
         if self._is_standard_response(data):
             return self._restore_response(response, body)
 
+        if response.status_code == 404:
+            return self._not_found_response(request, response, data)
+
         headers = {
             key: value
             for key, value in response.headers.items()
@@ -43,13 +46,35 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
         content_type = response.headers.get("content-type", "")
         return (
             request.url.path.startswith(f"{self.api_prefix}/")
-            and 200 <= response.status_code < 300
+            and (200 <= response.status_code < 300 or response.status_code == 404)
             and "application/json" in content_type.lower()
         )
 
     @staticmethod
     def _is_standard_response(data: object) -> bool:
         return isinstance(data, dict) and {"code", "message", "data"}.issubset(data)
+
+    @staticmethod
+    def _not_found_response(
+        request: Request, response: Response, data: object
+    ) -> JSONResponse:
+        message = "Not Found"
+        if isinstance(data, dict) and isinstance(data.get("detail"), str):
+            message = data["detail"]
+
+        is_data_not_found = request.scope.get("route") is not None
+
+        headers = {
+            key: value
+            for key, value in response.headers.items()
+            if key.lower() not in {"content-length", "content-type"}
+        }
+        return JSONResponse(
+            content={"code": 404, "message": message, "data": None},
+            status_code=200 if is_data_not_found else 404,
+            headers=headers,
+            background=response.background,
+        )
 
     @staticmethod
     def _restore_response(response: Response, body: bytes) -> Response:
