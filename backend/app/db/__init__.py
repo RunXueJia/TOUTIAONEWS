@@ -1,1 +1,1 @@
-"""Database session and metadata package."""
+"""数据库会话与元数据包。"""

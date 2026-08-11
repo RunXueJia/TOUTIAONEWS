@@ -1,4 +1,4 @@
-"""Async SQLAlchemy database configuration."""
+"""异步 SQLAlchemy 数据库配置。"""
 
 import os
 from collections.abc import AsyncGenerator
@@ -27,6 +27,6 @@ AsyncSessionLocal = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Yield one database session for a request and close it afterwards."""
+    """为每次请求提供一个数据库会话，并在结束后关闭。"""
     async with AsyncSessionLocal() as db:
         yield db

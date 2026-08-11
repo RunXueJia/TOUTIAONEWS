@@ -1,4 +1,4 @@
-"""Data access methods for the news API module."""
+"""新闻 API 模块的数据访问方法。"""
 
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,9 +7,10 @@ from app.models.news import News, NewsCategory
 
 
 class NewsRepository:
-    """Encapsulate ORM queries and CRUD operations for news resources."""
+    """封装新闻相关的 ORM 查询与增删改查操作。"""
 
     def __init__(self, db: AsyncSession) -> None:
+        """使用请求级数据库会话初始化仓储对象。"""
         self.db = db
 
     async def list_news(
@@ -19,7 +20,7 @@ class NewsRepository:
         page: int,
         page_size: int,
     ) -> tuple[list[News], int]:
-        """Return one page of news for a category and the matching total."""
+        """返回指定分类下的一页新闻数据及总条数。"""
         base_query = select(News)
         if category_id not in (None, 0):
             base_query = base_query.where(News.category_id == category_id)
@@ -37,11 +38,11 @@ class NewsRepository:
         return list(result.scalars().all()), total
 
     async def get_news_by_id(self, news_id: int) -> News | None:
-        """Return one news article by primary key, if it exists."""
+        """按主键查询单条新闻，不存在时返回空。"""
         return await self.db.get(News, news_id)
 
     async def increment_views(self, news: News) -> News:
-        """Atomically increase a news article's view count and refresh it."""
+        """原子性增加新闻浏览量，并刷新最新值。"""
         await self.db.execute(
             update(News)
             .where(News.id == news.id)
@@ -57,7 +58,7 @@ class NewsRepository:
         category_id: int,
         news_id: int,
     ) -> list[News]:
-        """Return the five newest same-category articles, ranked by views."""
+        """返回同分类下最新五条新闻，并按浏览量重新排序。"""
         recent_news = (
             select(News.id)
             .where(
@@ -80,7 +81,7 @@ class NewsRepository:
         return list(result.scalars().all())
 
     async def list_categories(self) -> list[NewsCategory]:
-        """Return all news categories in display order."""
+        """按展示顺序返回全部新闻分类。"""
         result = await self.db.execute(
             select(NewsCategory).order_by(
                 NewsCategory.sort_order.asc(),
@@ -90,11 +91,11 @@ class NewsRepository:
         return list(result.scalars().all())
 
     async def get_category_by_id(self, category_id: int) -> NewsCategory | None:
-        """Return one news category by primary key, if it exists."""
+        """按主键查询单个新闻分类，不存在时返回空。"""
         return await self.db.get(NewsCategory, category_id)
 
     async def create_category(self, name: str, sort_order: int = 0) -> NewsCategory:
-        """Create and persist a news category."""
+        """创建并持久化一个新闻分类。"""
         category = NewsCategory(name=name, sort_order=sort_order)
         self.db.add(category)
         await self.db.commit()
@@ -108,7 +109,7 @@ class NewsRepository:
         name: str | None = None,
         sort_order: int | None = None,
     ) -> NewsCategory | None:
-        """Update supplied fields on a news category."""
+        """更新新闻分类中传入的字段。"""
         category = await self.get_category_by_id(category_id)
         if category is None:
             return None
@@ -123,7 +124,7 @@ class NewsRepository:
         return category
 
     async def delete_category(self, category_id: int) -> bool:
-        """Delete a category and return whether a row was removed."""
+        """删除新闻分类，并返回是否实际删除了记录。"""
         category = await self.get_category_by_id(category_id)
         if category is None:
             return False

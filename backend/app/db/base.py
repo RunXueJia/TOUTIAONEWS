@@ -1,8 +1,7 @@
-"""SQLAlchemy declarative base for application models."""
+"""应用模型使用的 SQLAlchemy 声明式基类。"""
 
 from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
-    """Base class for SQLAlchemy ORM models."""
-
+    """SQLAlchemy ORM 模型的基础父类。"""

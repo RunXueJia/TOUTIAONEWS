@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""Reusable FastAPI dependencies shared by API endpoints."""
+"""API 路由共享的 FastAPI 依赖项。"""
 
 from typing import Annotated
 
@@ -9,35 +9,35 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class PaginationParams(BaseModel):
-    """Validated pagination parameters for list endpoints."""
+    """列表接口使用的已校验分页参数。"""
 
     model_config = ConfigDict(populate_by_name=True)
 
-    page: int = Field(default=1, ge=1, description="Page number starting at 1")
+    page: int = Field(default=1, ge=1, description="页码，从 1 开始")
     page_size: int = Field(
         default=10,
         alias="pageSize",
         validation_alias=AliasChoices("pageSize", "page_size"),
         ge=1,
         le=100,
-        description="Number of records per page (1-100)",
+        description="每页记录数，范围 1 到 100",
     )
 
     @property
     def offset(self) -> int:
-        """Return the SQL offset for the requested page."""
+        """返回当前页对应的 SQL 偏移量。"""
         return (self.page - 1) * self.page_size
 
     @property
     def limit(self) -> int:
-        """Return the SQL limit for the requested page."""
+        """返回当前页对应的 SQL 限制条数。"""
         return self.page_size
 
 
 def get_pagination(
     page: Annotated[
         int,
-        Query(ge=1, description="Page number starting at 1"),
+        Query(ge=1, description="页码，从 1 开始"),
     ] = 1,
     page_size: Annotated[
         int,
@@ -46,11 +46,11 @@ def get_pagination(
             validation_alias=AliasChoices("pageSize", "page_size"),
             ge=1,
             le=100,
-            description="Number of records per page (1-100)",
+            description="每页记录数，范围 1 到 100",
         ),
     ] = 10,
 ) -> PaginationParams:
-    """Build validated pagination parameters from query string values."""
+    """根据查询参数构造并校验分页参数。"""
     return PaginationParams(page=page, page_size=page_size)
 
 

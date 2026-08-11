@@ -8,8 +8,8 @@ from app.core.middleware import ApiResponseMiddleware
 app = FastAPI(
     title="Toutiao News API",
     openapi_tags=[
-        {"name": "news", "description": "News endpoints."},
-        {"name": "users", "description": "User endpoints."},
+        {"name": "news", "description": "新闻相关接口。"},
+        {"name": "users", "description": "用户相关接口。"},
     ],
 )
 

@@ -1,34 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.database import get_db
-from app.models.news import News
-from app.repositories.news import NewsRepository
+from app.schemas.news import NewsCategoryResponse, NewsDetailResponse, NewsListResponse
+from app.services.news import NewsService, get_news_service
 
 
 router = APIRouter(prefix="/news", tags=["news"])
 
 
-def _serialize_news(item: News) -> dict[str, object]:
-    """Convert a news ORM object into the public API representation."""
-    return {
-        "id": item.id,
-        "publish_time": item.publish_time,
-        "created_at": item.created_at,
-        "updated_at": item.updated_at,
-        "category": None,
-        "title": item.title,
-        "description": item.description,
-        "content": item.content,
-        "image": item.image,
-        "author": item.author,
-        "category_id": item.category_id,
-        "views": item.views,
-    }
-
-
 def _normalize_category_id(category_id: str | None) -> int | None:
-    """Treat missing, empty, null-like and zero category values as no filter."""
+    """将缺失、空值、类空值和 0 统一视为不按分类筛选。"""
     normalized = (category_id or "").strip()
     if not normalized or normalized.lower() in {"none", "null", "0"}:
         return None
@@ -47,70 +27,68 @@ def _normalize_category_id(category_id: str | None) -> int | None:
 
 @router.get(
     "/list",
-    summary="Get news list",
-    description="Return paginated news. An omitted or empty categoryId returns news from all categories.",
+    summary="获取新闻列表",
+    description="返回分页新闻列表。categoryId 省略、为空或为 0 时，返回全部分类的新闻。",
+    response_description="分页新闻列表。",
+    response_model=NewsListResponse,
+    responses={422: {"description": "一个或多个查询参数不合法。"}},
 )
 async def get_news_list(
     category_id: str | None = Query(
         None,
         alias="categoryId",
-        description="Optional category ID. Omit, empty, none, null, or 0 to query all categories.",
+        description="可选分类 ID。省略、留空、none、null 或 0 表示查询全部分类。",
     ),
-    page: int = Query(1, ge=1, description="Page number starting at 1 (default: 1)."),
+    page: int = Query(1, ge=1, description="页码，从 1 开始，默认值为 1。"),
     page_size: int = Query(
         10,
         alias="pageSize",
         ge=1,
         le=100,
-        description="Records per page (default: 10, maximum: 100).",
+        description="每页记录数，默认 10，最大 100。",
     ),
-    db: AsyncSession = Depends(get_db),
+    service: NewsService = Depends(get_news_service),
 ) -> dict[str, object]:
-    """Return a paginated news list, optionally filtered by category."""
+    """返回分页新闻列表，并按需按分类过滤。"""
     category_filter = _normalize_category_id(category_id)
-    news_items, total = await NewsRepository(db).list_news(
+    return await service.list_news(
         category_id=category_filter,
         page=page,
         page_size=page_size,
     )
-    return {
-        "list": [_serialize_news(item) for item in news_items],
-        "total": total,
-        "hasMore": page * page_size < total,
-    }
 
 
-@router.get("/detail", summary="Get news detail")
+@router.get(
+    "/detail",
+    summary="获取新闻详情",
+    description="返回单篇新闻详情，自动增加浏览量，并附带相关文章。",
+    response_description="目标新闻及其相关文章。",
+    response_model=NewsDetailResponse,
+    responses={
+        404: {"description": "请求的新闻不存在。"},
+        422: {"description": "新闻 ID 参数不合法。"},
+    },
+)
 async def get_news_detail(
-    news_id: int = Query(..., alias="id", ge=1, description="News article ID."),
-    db: AsyncSession = Depends(get_db),
+    news_id: int = Query(..., alias="id", ge=1, description="新闻文章 ID。"),
+    service: NewsService = Depends(get_news_service),
 ) -> dict[str, object]:
-    """Return a single news article by its ID."""
-    repository = NewsRepository(db)
-    news_item = await repository.get_news_by_id(news_id)
-    if news_item is None:
+    """根据新闻 ID 返回单条新闻详情。"""
+    payload = await service.get_news_detail(news_id)
+    if payload is None:
         raise HTTPException(status_code=404, detail="News article not found")
-    await repository.increment_views(news_item)
-    related_news = await repository.list_related_news(
-        category_id=news_item.category_id,
-        news_id=news_item.id,
-    )
-    payload = _serialize_news(news_item)
-    payload["relatedNews"] = [_serialize_news(item) for item in related_news]
     return payload
 
 
-@router.get("/categories")
-async def get_news_categories(db: AsyncSession = Depends(get_db)) -> list[dict[str, object]]:
-    """Return news categories ordered by their configured sort order."""
-    categories = await NewsRepository(db).list_categories()
-    return [
-        {
-            "id": category.id,
-            "created_at": category.created_at,
-            "updated_at": category.updated_at,
-            "name": category.name,
-            "sort_order": category.sort_order,
-        }
-        for category in categories
-    ]
+@router.get(
+    "/categories",
+    summary="获取新闻分类",
+    description="按系统配置的展示顺序返回全部新闻分类。",
+    response_description="按展示顺序排列的新闻分类列表。",
+    response_model=list[NewsCategoryResponse],
+)
+async def get_news_categories(
+    service: NewsService = Depends(get_news_service),
+) -> list[dict[str, object]]:
+    """返回按排序字段排列的新闻分类列表。"""
+    return await service.list_categories()

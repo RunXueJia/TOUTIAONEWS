@@ -1,4 +1,4 @@
-"""News article ORM model."""
+"""新闻领域 ORM 模型。"""
 
 from datetime import datetime
 
@@ -9,7 +9,7 @@ from app.db.base import Base
 
 
 class News(Base):
-    """A published news article."""
+    """已发布的新闻文章。"""
 
     __tablename__ = "news"
 
@@ -32,7 +32,7 @@ class News(Base):
 
 
 class NewsCategory(Base):
-    """A category used to classify news articles."""
+    """用于给新闻文章分类的类别。"""
 
     __tablename__ = "news_category"
 

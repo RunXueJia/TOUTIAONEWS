@@ -1,4 +1,4 @@
-"""Application middleware for normalizing API responses."""
+"""用于统一 API 响应格式的应用中间件。"""
 
 import json
 
@@ -8,11 +8,12 @@ from starlette.responses import JSONResponse, Response
 
 
 class ApiResponseMiddleware(BaseHTTPMiddleware):
-    """Wrap successful JSON responses from the API namespace in one schema."""
+    """将 API 命名空间中的成功 JSON 响应包装为统一结构。"""
 
     api_prefix = "/api"
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        """包装符合条件的 API JSON 响应，并保留原有错误码与响应头。"""
         response = await call_next(request)
 
         if not self._should_wrap(request, response):
@@ -43,6 +44,7 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
         )
 
     def _should_wrap(self, request: Request, response: Response) -> bool:
+        """判断响应是否需要套用统一返回结构。"""
         content_type = response.headers.get("content-type", "")
         return (
             request.url.path.startswith(f"{self.api_prefix}/")
@@ -52,12 +54,14 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _is_standard_response(data: object) -> bool:
+        """判断负载是否已经使用标准响应结构。"""
         return isinstance(data, dict) and {"code", "message", "data"}.issubset(data)
 
     @staticmethod
     def _not_found_response(
         request: Request, response: Response, data: object
     ) -> JSONResponse:
+        """将 API 的 404 响应转换为项目统一的未找到结构。"""
         message = "Not Found"
         if isinstance(data, dict) and isinstance(data.get("detail"), str):
             message = data["detail"]
@@ -78,6 +82,7 @@ class ApiResponseMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _restore_response(response: Response, body: bytes) -> Response:
+        """在不改变原语义的前提下重建已消费的响应体。"""
         headers = {
             key: value
             for key, value in response.headers.items()

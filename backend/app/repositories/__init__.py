@@ -1,1 +1,1 @@
-"""Data access repository package."""
+"""数据访问仓储包。"""
