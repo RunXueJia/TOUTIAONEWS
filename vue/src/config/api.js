@@ -26,6 +26,11 @@ const getCookie = (name) => {
 axios.interceptors.request.use((config) => {
   if (config.url?.startsWith(apiConfig.baseURL)) {
     const token = getCookie('token')
+    console.log('token',token);
+    
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
 
   return config

@@ -127,7 +127,7 @@ export const useUserStore = defineStore('user', {
         const response = await axios.get(`${apiConfig.baseURL}/api/user/info`, {
           headers: {
             // Authorization: `Bearer ${this.token}`
-            Authorization: this.token
+            // Authorization: this.token
           }
         });
         
