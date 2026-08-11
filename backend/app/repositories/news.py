@@ -1,6 +1,6 @@
 """Data access methods for the news API module."""
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.news import News, NewsCategory
@@ -39,6 +39,45 @@ class NewsRepository:
     async def get_news_by_id(self, news_id: int) -> News | None:
         """Return one news article by primary key, if it exists."""
         return await self.db.get(News, news_id)
+
+    async def increment_views(self, news: News) -> News:
+        """Atomically increase a news article's view count and refresh it."""
+        await self.db.execute(
+            update(News)
+            .where(News.id == news.id)
+            .values(views=News.views + 1)
+        )
+        await self.db.commit()
+        await self.db.refresh(news, attribute_names=["views"])
+        return news
+
+    async def list_related_news(
+        self,
+        *,
+        category_id: int,
+        news_id: int,
+    ) -> list[News]:
+        """Return the five newest same-category articles, ranked by views."""
+        recent_news = (
+            select(News.id)
+            .where(
+                News.category_id == category_id,
+                News.id != news_id,
+            )
+            .order_by(News.publish_time.desc(), News.id.desc())
+            .limit(5)
+            .subquery()
+        )
+        result = await self.db.execute(
+            select(News)
+            .join(recent_news, News.id == recent_news.c.id)
+            .order_by(
+                News.views.desc(),
+                News.publish_time.desc(),
+                News.id.desc(),
+            )
+        )
+        return list(result.scalars().all())
 
     async def list_categories(self) -> list[NewsCategory]:
         """Return all news categories in display order."""

@@ -86,10 +86,18 @@ async def get_news_detail(
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
     """Return a single news article by its ID."""
-    news_item = await NewsRepository(db).get_news_by_id(news_id)
+    repository = NewsRepository(db)
+    news_item = await repository.get_news_by_id(news_id)
     if news_item is None:
         raise HTTPException(status_code=404, detail="News article not found")
-    return _serialize_news(news_item)
+    await repository.increment_views(news_item)
+    related_news = await repository.list_related_news(
+        category_id=news_item.category_id,
+        news_id=news_item.id,
+    )
+    payload = _serialize_news(news_item)
+    payload["relatedNews"] = [_serialize_news(item) for item in related_news]
+    return payload
 
 
 @router.get("/categories")
