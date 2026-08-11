@@ -26,8 +26,29 @@ class UserRegisterRequest(BaseModel):
     )
 
 
+class UserLoginRequest(BaseModel):
+    """用户登录时提交的用户名和密码。"""
+
+    username: str = Field(
+        ...,
+        strict=True,
+        min_length=1,
+        max_length=50,
+        description="已注册的用户名。",
+        examples=["zhangsan"],
+    )
+    password: str = Field(
+        ...,
+        strict=True,
+        min_length=1,
+        max_length=128,
+        description="登录密码，不会在响应中返回。",
+        examples=["example-password"],
+    )
+
+
 class UserInfoResponse(BaseModel):
-    """注册成功后可安全返回的用户信息。"""
+    """可安全返回给客户端的用户公开信息。"""
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -40,6 +61,7 @@ class UserInfoResponse(BaseModel):
 class UserRegisterResponse(BaseModel):
     """注册接口的业务数据结构。"""
 
+    token: str = Field(description="用户认证令牌。")
     user_info: UserInfoResponse = Field(
         alias="userInfo",
         description="新建用户的公开信息，不包含密码。",

@@ -21,10 +21,16 @@ export const useUserStore = defineStore('user', {
     async login(userData) {
       try {
         // 发送登录请求
-        const response = await axios.post(`${apiConfig.baseURL}/api/user/login`, {
-          username: userData.username,
-          password: userData.password
-        });
+        const response = await axios.post(
+          `${apiConfig.baseURL}/api/user/login`,
+          {
+            username: userData.username,
+            password: userData.password
+          },
+          {
+            withCredentials: true
+          }
+        );
         
         // 检查响应状态
         if (response.data && response.data.code === 200) {
@@ -59,10 +65,16 @@ export const useUserStore = defineStore('user', {
     async register(userData) {
       try {
         // 发送注册请求
-        const response = await axios.post(`${apiConfig.baseURL}/api/user/register`, {
-          username: userData.username,
-          password: userData.password
-        });
+        const response = await axios.post(
+          `${apiConfig.baseURL}/api/user/register`,
+          {
+            username: userData.username,
+            password: userData.password
+          },
+          {
+            withCredentials: true
+          }
+        );
         
         // 检查响应状态
         if (response.data && response.data.code === 200) {
@@ -237,12 +249,8 @@ export const useUserStore = defineStore('user', {
   
   // 添加持久化配置
   persist: {
-    enabled: true,
-    strategies: [
-      {
-        key: 'user-store',
-        storage: localStorage
-      }
-    ]
+    key: 'user-store',
+    storage: localStorage,
+    pick: ['userInfo', 'token', 'isLogin', 'userBio']
   }
 });

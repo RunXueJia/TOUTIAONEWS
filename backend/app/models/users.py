@@ -27,3 +27,19 @@ class User(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class UserToken(Base):
+    """用户认证令牌表，对应数据库中的 ``user_token`` 表。"""
+
+    __tablename__ = "user_token"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime,
+        nullable=False,
+        server_default=func.now(),
+    )

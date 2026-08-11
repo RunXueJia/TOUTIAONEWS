@@ -1,10 +1,12 @@
 """用户 API 模块的数据访问方法。"""
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.users import User
+from app.models.users import User, UserToken
 
 
 class DuplicateUsernameError(Exception):
@@ -35,3 +37,49 @@ class UserRepository:
 
         await self.db.refresh(user)
         return user
+
+    async def get_token_by_user_id(self, user_id: int) -> UserToken | None:
+        """按用户 ID 查询认证令牌，不存在时返回空。"""
+        result = await self.db.execute(
+            select(UserToken).where(UserToken.user_id == user_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_token(self, token: str) -> UserToken | None:
+        """按令牌值查询认证令牌，不存在时返回空。"""
+        result = await self.db.execute(select(UserToken).where(UserToken.token == token))
+        return result.scalar_one_or_none()
+
+    async def get_by_id(self, user_id: int) -> User | None:
+        """按用户 ID 查询用户，不存在时返回空。"""
+        result = await self.db.execute(select(User).where(User.id == user_id))
+        return result.scalar_one_or_none()
+
+    async def create_or_update_token(
+        self,
+        *,
+        user_id: int,
+        token: str,
+        expires_at: datetime,
+    ) -> UserToken:
+        """为用户创建令牌，已有令牌时更新令牌值和过期时间。"""
+        user_token = await self.get_token_by_user_id(user_id)
+        if user_token is None:
+            user_token = UserToken(
+                user_id=user_id,
+                token=token,
+                expires_at=expires_at,
+            )
+            self.db.add(user_token)
+        else:
+            user_token.token = token
+            user_token.expires_at = expires_at
+
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(user_token)
+        return user_token
