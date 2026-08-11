@@ -7,15 +7,23 @@ from main import app
 
 
 def test_api_success_response_uses_code_200() -> None:
-    client = TestClient(app)
+    test_app = FastAPI()
+    test_app.add_middleware(ApiResponseMiddleware)
 
-    response = client.get("/api/users/get_user_list")
+    @test_app.get("/api/success")
+    async def success() -> dict[str, str]:
+        """提供未包装的成功响应，用于验证中间件。"""
+        return {"message": "success"}
+
+    client = TestClient(test_app)
+
+    response = client.get("/api/success")
 
     assert response.status_code == 200
     assert response.json() == {
         "code": 200,
         "message": "success",
-        "data": {"message": "Users router"},
+        "data": {"message": "success"},
     }
 
 
@@ -33,7 +41,7 @@ def test_standard_response_is_not_wrapped_twice() -> None:
     assert response.json() == {"code": 200, "message": "created", "data": {"id": 1}}
 
 
-def test_error_response_is_not_converted_to_a_success_response() -> None:
+def test_error_response_is_returned_in_standard_body() -> None:
     test_app = FastAPI()
     test_app.add_middleware(ApiResponseMiddleware)
 
@@ -43,8 +51,12 @@ def test_error_response_is_not_converted_to_a_success_response() -> None:
 
     response = TestClient(test_app).get("/api/failure")
 
-    assert response.status_code == 400
-    assert response.json() == {"detail": "invalid request"}
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": 400,
+        "message": "invalid request",
+        "data": None,
+    }
 
 
 def test_missing_api_route_uses_code_404() -> None:
@@ -67,7 +79,7 @@ def test_missing_api_data_uses_code_404() -> None:
 
     response = TestClient(test_app).get("/api/news/42")
 
-    assert response.status_code == 404
+    assert response.status_code == 200
     assert response.json() == {
         "code": 404,
         "message": "News 42 not found",

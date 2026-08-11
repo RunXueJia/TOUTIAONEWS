@@ -6,12 +6,14 @@ from app.schemas.news import (
     NewsItemResponse,
     NewsListResponse,
 )
-from app.schemas.users import UserListPlaceholderResponse
+from app.schemas.users import UserInfoResponse, UserRegisterRequest, UserRegisterResponse
 
 __all__ = [
     "NewsCategoryResponse",
     "NewsDetailResponse",
     "NewsItemResponse",
     "NewsListResponse",
-    "UserListPlaceholderResponse",
+    "UserInfoResponse",
+    "UserRegisterRequest",
+    "UserRegisterResponse",
 ]

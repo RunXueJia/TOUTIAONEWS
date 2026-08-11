@@ -71,7 +71,8 @@ def test_get_news_list_filters_and_paginates():
 def test_get_news_list_requires_positive_category_id():
     response = TestClient(app).get("/api/news/list?categoryId=-1")
 
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["code"] == 422
 
 
 def test_empty_category_values_mean_all_categories():

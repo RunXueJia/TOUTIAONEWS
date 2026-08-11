@@ -107,4 +107,5 @@ def test_get_news_detail_returns_not_found():
 
 def test_get_news_detail_requires_positive_id():
     response = TestClient(app).get("/api/news/detail?id=0")
-    assert response.status_code == 422
+    assert response.status_code == 200
+    assert response.json()["code"] == 422
