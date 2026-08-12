@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from fastapi import Response
 from fastapi.testclient import TestClient
 
+from app.core.dependencies import get_current_user
 from app.services.users import (
     InvalidCredentialsError,
     UserService,
@@ -343,3 +344,94 @@ def test_user_info_endpoint_rejects_missing_or_unknown_token() -> None:
     for response in (missing_response, unknown_response):
         assert response.status_code == 200
         assert response.json() == {"code": 401, "message": "登录凭证无效", "data": None}
+
+
+class FakeUserUpdateRepository:
+    """为用户资料更新测试记录待更新字段。"""
+
+    async def update_user(
+        self,
+        user: SimpleNamespace,
+        update_data: dict[str, object],
+    ) -> SimpleNamespace:
+        """仅应用提交字段，模拟数据库更新后的用户对象。"""
+        for field, value in update_data.items():
+            setattr(user, field, value)
+        return user
+
+
+def test_user_update_only_changes_submitted_allowed_fields() -> None:
+    """更新服务应保留未提交字段，并忽略账号与密码字段。"""
+    async def verify() -> None:
+        timestamp = datetime(2026, 8, 12, 9, 0)
+        user = SimpleNamespace(
+            id=1,
+            username="zhangsan",
+            password=hash_password("old-password"),
+            nickname="旧昵称",
+            bio="原简介",
+            created_at=timestamp,
+            updated_at=timestamp,
+        )
+        result = await UserService(FakeUserUpdateRepository()).update_user(
+            user,
+            {"nickname": "新昵称", "username": "new-name", "phone": "13800138000"},
+        )
+
+        assert result.nickname == "新昵称"
+        assert result.bio == "原简介"
+        assert result.username == "zhangsan"
+        assert not hasattr(result, "phone")
+        assert verify_password("old-password", result.password)
+
+    asyncio.run(verify())
+
+
+def test_user_update_endpoint_supports_patch_put_and_rejects_account_fields() -> None:
+    """PATCH/PUT 应只更新提交字段，并拒绝账号与密码字段。"""
+    timestamp = datetime(2026, 8, 12, 9, 0)
+    current_user = SimpleNamespace(
+        id=1,
+        username="zhangsan",
+        password=hash_password("old-password"),
+        nickname="旧昵称",
+        avatar=None,
+        gender="unknown",
+        bio="原简介",
+        phone=None,
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为受保护接口提供已验证的当前用户。"""
+        return current_user
+
+    async def fake_service_dependency() -> UserService:
+        """为接口注入内存更新仓储。"""
+        return UserService(FakeUserUpdateRepository())
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_user_service] = fake_service_dependency
+    try:
+        client = TestClient(app)
+        patch_response = client.patch("/api/user/update", json={"nickname": "新昵称"})
+        put_response = client.put("/api/user/update", json={"bio": "新简介"})
+        rejected_responses = [
+            client.patch("/api/user/update", json={"username": "new-name"}),
+            client.patch("/api/user/update", json={"phone": "13800138000"}),
+            client.patch("/api/user/update", json={"password": "new-password"}),
+        ]
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_user_service, None)
+
+    for response in (patch_response, put_response):
+        assert response.status_code == 200
+        assert response.json()["code"] == 200
+    assert patch_response.json()["data"]["nickname"] == "新昵称"
+    assert patch_response.json()["data"]["bio"] == "原简介"
+    assert put_response.json()["data"]["bio"] == "新简介"
+    for response in rejected_responses:
+        assert response.status_code == 200
+        assert response.json()["code"] == 422

@@ -55,6 +55,20 @@ class UserRepository:
         result = await self.db.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
+    async def update_user(self, user: User, update_data: dict[str, object]) -> User:
+        """仅写入传入字段并提交用户资料，唯一约束冲突时回滚。"""
+        for field, value in update_data.items():
+            setattr(user, field, value)
+
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(user)
+        return user
+
     async def create_or_update_token(
         self,
         *,

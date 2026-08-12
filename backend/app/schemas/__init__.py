@@ -11,6 +11,7 @@ from app.schemas.users import (
     UserLoginRequest,
     UserRegisterRequest,
     UserRegisterResponse,
+    UserUpdateRequest,
 )
 
 __all__ = [
@@ -22,4 +23,5 @@ __all__ = [
     "UserLoginRequest",
     "UserRegisterRequest",
     "UserRegisterResponse",
+    "UserUpdateRequest",
 ]

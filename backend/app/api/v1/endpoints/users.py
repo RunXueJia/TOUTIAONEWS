@@ -1,7 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 
 from app.core.dependencies import CurrentUser
-from app.schemas.users import UserInfoResponse, UserLoginRequest, UserRegisterRequest, UserRegisterResponse
+from app.schemas.users import (
+    UserInfoResponse,
+    UserLoginRequest,
+    UserRegisterRequest,
+    UserRegisterResponse,
+    UserUpdateRequest,
+)
 from app.services.users import (
     InvalidCredentialsError,
     UserService,
@@ -94,3 +100,62 @@ async def get_user_info(
 ) -> UserInfoResponse:
     """通过共享认证依赖读取 Authorization 令牌并返回当前用户信息。"""
     return UserInfoResponse.model_validate(current_user)
+
+
+_UPDATE_USER_RESPONSES = {
+    200: {"description": "更新结果或包含业务错误码的响应体。"},
+    401: {"description": "Authorization 令牌不存在或无效。"},
+    402: {"description": "Authorization 令牌已过期，需要重新登录。"},
+}
+
+_UPDATE_USER_DESCRIPTION = (
+    "校验 Authorization 令牌后，仅更新请求体中明确提交的资料字段。"
+    "未提交的字段保持原值，资料字段显式传 null 可清空。"
+    "接口不支持更新用户名、手机号和密码。"
+    "所有响应的 HTTP 状态均为 200。"
+)
+
+
+async def _update_current_user(
+    payload: UserUpdateRequest,
+    current_user: CurrentUser,
+    service: UserService,
+) -> UserInfoResponse:
+    """复用非账号资料更新逻辑，确保 PATCH 和 PUT 行为一致。"""
+    update_data = payload.model_dump(exclude_unset=True)
+    user = await service.update_user(current_user, update_data)
+    return UserInfoResponse.model_validate(user)
+
+
+@router.patch(
+    "/update",
+    summary="更新当前用户资料",
+    description=_UPDATE_USER_DESCRIPTION,
+    response_description="返回更新后的当前用户公开信息，不包含密码。",
+    response_model=UserInfoResponse,
+    responses=_UPDATE_USER_RESPONSES,
+)
+async def patch_user(
+    payload: UserUpdateRequest,
+    current_user: CurrentUser,
+    service: UserService = Depends(get_user_service),
+) -> UserInfoResponse:
+    """通过 PATCH 更新已认证用户明确提交的非账号资料字段。"""
+    return await _update_current_user(payload, current_user, service)
+
+
+@router.put(
+    "/update",
+    summary="更新当前用户资料",
+    description=_UPDATE_USER_DESCRIPTION,
+    response_description="返回更新后的当前用户公开信息，不包含密码。",
+    response_model=UserInfoResponse,
+    responses=_UPDATE_USER_RESPONSES,
+)
+async def put_user(
+    payload: UserUpdateRequest,
+    current_user: CurrentUser,
+    service: UserService = Depends(get_user_service),
+) -> UserInfoResponse:
+    """通过 PUT 更新已认证用户明确提交的非账号资料字段。"""
+    return await _update_current_user(payload, current_user, service)

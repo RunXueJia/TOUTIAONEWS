@@ -47,6 +47,33 @@ class UserLoginRequest(BaseModel):
     )
 
 
+class UserUpdateRequest(BaseModel):
+    """当前用户可修改的非账号资料字段，未提交字段不会被更新。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    nickname: str | None = Field(
+        default=None,
+        max_length=50,
+        description="昵称；显式传 null 可清空。",
+        examples=["张三"],
+    )
+    avatar: str | None = Field(
+        default=None,
+        max_length=255,
+        description="头像 URL；显式传 null 可清空。",
+    )
+    gender: str | None = Field(
+        default=None,
+        max_length=10,
+        description="性别；显式传 null 可清空。",
+        examples=["male"],
+    )
+    bio: str | None = Field(
+        default=None,
+        max_length=500,
+        description="个人简介；显式传 null 可清空。",
+    )
 class UserInfoResponse(BaseModel):
     """可安全返回给客户端的用户公开信息（不包含密码）。"""
 

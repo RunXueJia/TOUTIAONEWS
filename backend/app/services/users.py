@@ -118,6 +118,16 @@ class UserService:
         user = await self.validate_token(authorization)
         return self._serialize_user(user)
 
+    async def update_user(self, user: User, update_data: dict[str, object]) -> User:
+        """仅保存当前用户明确提交的非账号资料字段。"""
+        allowed_fields = {"nickname", "avatar", "gender", "bio"}
+        profile_data = {
+            field: value for field, value in update_data.items() if field in allowed_fields
+        }
+        if not profile_data:
+            return user
+        return await self.repository.update_user(user, profile_data)
+
     @staticmethod
     def _normalize_authorization(authorization: str | None) -> str:
         """去除 Authorization 两端空白，并兼容 Bearer 令牌格式。"""
