@@ -28,6 +28,14 @@ class TokenExpiredError(Exception):
     """请求令牌已超过有效期时抛出的业务异常。"""
 
 
+class OldPasswordIncorrectError(Exception):
+    """提交的旧密码与当前用户密码不一致时抛出的业务异常。"""
+
+
+class PasswordUnchangedError(Exception):
+    """新密码与旧密码一致时抛出的业务异常。"""
+
+
 class UserService:
     """编排用户注册和登录规则并隔离密码与令牌细节。"""
 
@@ -127,6 +135,20 @@ class UserService:
         if not profile_data:
             return user
         return await self.repository.update_user(user, profile_data)
+
+    async def update_password(
+        self,
+        user: User,
+        *,
+        old_password: str,
+        new_password: str,
+    ) -> User:
+        """校验旧密码和新旧差异后，保存当前用户的新密码哈希。"""
+        if not verify_password(old_password, user.password):
+            raise OldPasswordIncorrectError
+        if new_password == old_password:
+            raise PasswordUnchangedError
+        return await self.repository.update_password(user, hash_password(new_password))
 
     @staticmethod
     def _normalize_authorization(authorization: str | None) -> str:

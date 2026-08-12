@@ -10,6 +10,8 @@ from fastapi.testclient import TestClient
 from app.core.dependencies import get_current_user
 from app.services.users import (
     InvalidCredentialsError,
+    OldPasswordIncorrectError,
+    PasswordUnchangedError,
     UserService,
     UsernameAlreadyExistsError,
     get_user_service,
@@ -359,6 +361,15 @@ class FakeUserUpdateRepository:
             setattr(user, field, value)
         return user
 
+    async def update_password(
+        self,
+        user: SimpleNamespace,
+        password_hash: str,
+    ) -> SimpleNamespace:
+        """记录密码哈希更新，模拟数据库写入。"""
+        user.password = password_hash
+        return user
+
 
 def test_user_update_only_changes_submitted_allowed_fields() -> None:
     """更新服务应保留未提交字段，并忽略账号与密码字段。"""
@@ -435,3 +446,89 @@ def test_user_update_endpoint_supports_patch_put_and_rejects_account_fields() ->
     for response in rejected_responses:
         assert response.status_code == 200
         assert response.json()["code"] == 422
+
+
+def test_user_password_update_validates_old_password_and_new_password() -> None:
+    """修改密码服务应拒绝错误旧密码和相同新密码，并保存新密码哈希。"""
+    async def verify() -> None:
+        user = SimpleNamespace(password=hash_password("old-password"))
+        service = UserService(FakeUserUpdateRepository())
+
+        try:
+            await service.update_password(
+                user,
+                old_password="wrong-password",
+                new_password="new-password",
+            )
+        except OldPasswordIncorrectError:
+            pass
+        else:
+            raise AssertionError("旧密码错误必须被拒绝")
+
+        try:
+            await service.update_password(
+                user,
+                old_password="old-password",
+                new_password="old-password",
+            )
+        except PasswordUnchangedError:
+            pass
+        else:
+            raise AssertionError("相同的新密码必须被拒绝")
+
+        await service.update_password(
+            user,
+            old_password="old-password",
+            new_password="new-password",
+        )
+        assert verify_password("new-password", user.password)
+        assert not verify_password("old-password", user.password)
+
+    asyncio.run(verify())
+
+
+def test_user_password_endpoint_returns_body_error_codes() -> None:
+    """修改密码接口应校验登录，并在响应体返回业务错误码。"""
+    timestamp = datetime(2026, 8, 12, 9, 0)
+    current_user = SimpleNamespace(
+        id=1,
+        username="zhangsan",
+        password=hash_password("old-password"),
+        created_at=timestamp,
+        updated_at=timestamp,
+    )
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为受保护接口提供已验证的当前用户。"""
+        return current_user
+
+    async def fake_service_dependency() -> UserService:
+        """为接口注入内存密码更新仓储。"""
+        return UserService(FakeUserUpdateRepository())
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_user_service] = fake_service_dependency
+    try:
+        client = TestClient(app)
+        success_response = client.put(
+            "/api/user/password",
+            json={"oldPassword": "old-password", "newPassword": "new-password"},
+        )
+        wrong_old_password_response = client.put(
+            "/api/user/password",
+            json={"oldPassword": "wrong-password", "newPassword": "another-password"},
+        )
+        same_password_response = client.put(
+            "/api/user/password",
+            json={"oldPassword": "new-password", "newPassword": "new-password"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_user_service, None)
+
+    assert success_response.status_code == 200
+    assert success_response.json() == {"code": 200, "message": "密码修改成功", "data": None}
+    assert wrong_old_password_response.status_code == 200
+    assert wrong_old_password_response.json() == {"code": 500, "message": "旧密码错误", "data": None}
+    assert same_password_response.status_code == 200
+    assert same_password_response.json() == {"code": 400, "message": "新密码不能与旧密码相同", "data": None}
