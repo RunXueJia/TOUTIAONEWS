@@ -21,7 +21,7 @@
       
       <div class="info">
         <span>{{ newsStore.newsDetail.author }}</span>
-        <span>{{ newsStore.newsDetail.publishTime }}</span>
+        <span>{{ newsStore.newsDetail.publish_time }}</span>
         <span>{{ newsStore.newsDetail.views }} 阅读</span>
       </div>
       
