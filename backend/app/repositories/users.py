@@ -69,6 +69,18 @@ class UserRepository:
         await self.db.refresh(user)
         return user
 
+    async def update_password(self, user: User, password_hash: str) -> User:
+        """更新用户密码哈希并提交事务。"""
+        user.password = password_hash
+        try:
+            await self.db.commit()
+        except IntegrityError:
+            await self.db.rollback()
+            raise
+
+        await self.db.refresh(user)
+        return user
+
     async def create_or_update_token(
         self,
         *,

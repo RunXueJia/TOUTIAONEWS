@@ -6,10 +6,13 @@ from app.schemas.users import (
     UserLoginRequest,
     UserRegisterRequest,
     UserRegisterResponse,
+    UserPasswordUpdateRequest,
     UserUpdateRequest,
 )
 from app.services.users import (
     InvalidCredentialsError,
+    OldPasswordIncorrectError,
+    PasswordUnchangedError,
     UserService,
     UsernameAlreadyExistsError,
     get_user_service,
@@ -159,3 +162,39 @@ async def put_user(
 ) -> UserInfoResponse:
     """通过 PUT 更新已认证用户明确提交的非账号资料字段。"""
     return await _update_current_user(payload, current_user, service)
+
+
+@router.put(
+    "/password",
+    summary="修改当前用户密码",
+    description=(
+        "校验 Authorization 登录凭证和旧密码后更新当前用户密码。"
+        "旧密码错误时响应体返回 code=500；新旧密码相同时返回 code=400；"
+        "所有响应的 HTTP 状态均为 200。"
+    ),
+    response_description="密码修改结果；业务错误通过响应体的 code 返回。",
+    responses={
+        200: {"description": "修改成功或包含业务错误码的响应体。"},
+        401: {"description": "Authorization 令牌不存在或无效。"},
+        402: {"description": "Authorization 令牌已过期，需要重新登录。"},
+        500: {"description": "旧密码错误。"},
+    },
+)
+async def update_password(
+    payload: UserPasswordUpdateRequest,
+    current_user: CurrentUser,
+    service: UserService = Depends(get_user_service),
+) -> dict[str, object]:
+    """校验当前用户旧密码后修改密码。"""
+    try:
+        await service.update_password(
+            current_user,
+            old_password=payload.old_password,
+            new_password=payload.new_password,
+        )
+    except OldPasswordIncorrectError as exc:
+        raise HTTPException(status_code=500, detail="旧密码错误") from exc
+    except PasswordUnchangedError as exc:
+        raise HTTPException(status_code=400, detail="新密码不能与旧密码相同") from exc
+
+    return {"code": 200, "message": "密码修改成功", "data": None}

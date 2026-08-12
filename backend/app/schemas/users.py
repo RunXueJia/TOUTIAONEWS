@@ -74,6 +74,33 @@ class UserUpdateRequest(BaseModel):
         max_length=500,
         description="个人简介；显式传 null 可清空。",
     )
+
+
+class UserPasswordUpdateRequest(BaseModel):
+    """当前用户修改密码时提交的旧密码和新密码。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    new_password: str = Field(
+        ...,
+        alias="newPassword",
+        strict=True,
+        min_length=1,
+        max_length=128,
+        description="新密码，不会在响应中返回。",
+        examples=["new-example-password"],
+    )
+    old_password: str = Field(
+        ...,
+        alias="oldPassword",
+        strict=True,
+        min_length=1,
+        max_length=128,
+        description="当前密码，用于校验身份，不会在响应中返回。",
+        examples=["old-example-password"],
+    )
+
+
 class UserInfoResponse(BaseModel):
     """可安全返回给客户端的用户公开信息（不包含密码）。"""
 
