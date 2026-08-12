@@ -79,6 +79,22 @@ async def get_current_user(
         raise HTTPException(status_code=401, detail="登录凭证无效") from exc
 
 
+async def get_optional_current_user(
+    authorization: str | None = Header(
+        default=None,
+        alias="Authorization",
+        description="可选的用户认证令牌；未登录或令牌无效时按匿名用户处理。",
+        examples=["Bearer example-token"],
+    ),
+    service: UserService = Depends(get_user_service),
+) -> User | None:
+    """尝试解析当前用户；未登录、令牌无效或过期时返回空而不产生认证错误。"""
+    try:
+        return await service.validate_token(authorization)
+    except (TokenExpiredError, TokenNotFoundError):
+        return None
+
+
 Pagination = Annotated[PaginationParams, Depends(get_pagination)]
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
@@ -87,5 +103,6 @@ __all__ = [
     "Pagination",
     "PaginationParams",
     "get_current_user",
+    "get_optional_current_user",
     "get_pagination",
 ]
