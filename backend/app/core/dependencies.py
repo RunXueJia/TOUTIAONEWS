@@ -4,8 +4,15 @@
 
 from typing import Annotated
 
-from fastapi import Depends, Query
+from fastapi import Depends, Header, HTTPException, Query
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from app.models.users import User
+from app.services.users import (
+    TokenExpiredError,
+    TokenNotFoundError,
+    UserService,
+    get_user_service,
+)
 
 
 class PaginationParams(BaseModel):
@@ -54,6 +61,31 @@ def get_pagination(
     return PaginationParams(page=page, page_size=page_size)
 
 
-Pagination = Annotated[PaginationParams, Depends(get_pagination)]
+async def get_current_user(
+    authorization: str | None = Header(
+        default=None,
+        alias="Authorization",
+        description="用户认证令牌，支持直接传入令牌或 Bearer <token>。",
+        examples=["Bearer example-token"],
+    ),
+    service: UserService = Depends(get_user_service),
+) -> User:
+    """校验请求令牌并返回当前用户，供所有需要登录态的路由声明依赖。"""
+    try:
+        return await service.validate_token(authorization)
+    except TokenExpiredError as exc:
+        raise HTTPException(status_code=402, detail="登录已过期") from exc
+    except TokenNotFoundError as exc:
+        raise HTTPException(status_code=401, detail="登录凭证无效") from exc
 
-__all__ = ["Pagination", "PaginationParams", "get_pagination"]
+
+Pagination = Annotated[PaginationParams, Depends(get_pagination)]
+CurrentUser = Annotated[User, Depends(get_current_user)]
+
+__all__ = [
+    "CurrentUser",
+    "Pagination",
+    "PaginationParams",
+    "get_current_user",
+    "get_pagination",
+]

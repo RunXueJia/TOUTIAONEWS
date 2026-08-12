@@ -48,12 +48,17 @@ class UserLoginRequest(BaseModel):
 
 
 class UserInfoResponse(BaseModel):
-    """可安全返回给客户端的用户公开信息。"""
+    """可安全返回给客户端的用户公开信息（不包含密码）。"""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: int = Field(description="用户自增 ID", examples=[1])
     username: str = Field(description="用户唯一名称", examples=["zhangsan"])
+    nickname: str | None = Field(default=None, description="用户昵称", examples=["张三"])
+    avatar: str | None = Field(default=None, description="头像 URL")
+    gender: str | None = Field(default=None, description="性别：male、female 或 unknown", examples=["unknown"])
+    bio: str | None = Field(default=None, description="个人简介", examples=["这个人很懒，什么都没留下"])
+    phone: str | None = Field(default=None, description="手机号")
     created_at: datetime = Field(description="用户创建时间")
     updated_at: datetime = Field(description="用户最后更新时间")
 

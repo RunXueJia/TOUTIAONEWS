@@ -275,6 +275,27 @@ def test_user_info_endpoint_validates_authorization_token() -> None:
     assert "password" not in response.json()["data"]
 
 
+def test_validate_token_returns_authenticated_user_for_reuse() -> None:
+    """令牌校验方法应返回用户实体，供其他受保护接口直接复用。"""
+    async def verify() -> None:
+        service = UserService(
+            FakeUserInfoRepository(
+                SimpleNamespace(
+                    token="valid-token",
+                    user_id=1,
+                    expires_at=datetime(2099, 1, 1),
+                )
+            )
+        )
+
+        user = await service.validate_token("Bearer valid-token")
+
+        assert user.id == 1
+        assert user.username == "zhangsan"
+
+    asyncio.run(verify())
+
+
 def test_user_info_endpoint_returns_expired_code_for_expired_token() -> None:
     """接口应在令牌过期时返回 code=402 和登录过期消息。"""
     async def fake_service_dependency() -> UserService:

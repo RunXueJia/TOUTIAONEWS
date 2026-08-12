@@ -1,10 +1,9 @@
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 
+from app.core.dependencies import CurrentUser
 from app.schemas.users import UserInfoResponse, UserLoginRequest, UserRegisterRequest, UserRegisterResponse
 from app.services.users import (
     InvalidCredentialsError,
-    TokenExpiredError,
-    TokenNotFoundError,
     UserService,
     UsernameAlreadyExistsError,
     get_user_service,
@@ -91,18 +90,7 @@ async def login_user(
     },
 )
 async def get_user_info(
-    authorization: str | None = Header(
-        default=None,
-        alias="Authorization",
-        description="用户认证令牌，支持直接传入令牌或 Bearer <token>。",
-        examples=["Bearer example-token"],
-    ),
-    service: UserService = Depends(get_user_service),
-) -> dict[str, object]:
-    """读取 Authorization 令牌并返回当前用户信息。"""
-    try:
-        return await service.get_user_info(authorization)
-    except TokenExpiredError as exc:
-        raise HTTPException(status_code=402, detail="登录已过期") from exc
-    except TokenNotFoundError as exc:
-        raise HTTPException(status_code=401, detail="登录凭证无效") from exc
+    current_user: CurrentUser,
+) -> UserInfoResponse:
+    """通过共享认证依赖读取 Authorization 令牌并返回当前用户信息。"""
+    return UserInfoResponse.model_validate(current_user)

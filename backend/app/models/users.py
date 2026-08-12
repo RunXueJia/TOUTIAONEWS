@@ -16,6 +16,15 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
+    nickname: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    avatar: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    gender: Mapped[str | None] = mapped_column(
+        String(10),
+        nullable=True,
+        server_default="unknown",
+    )
+    bio: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

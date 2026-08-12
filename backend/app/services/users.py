@@ -96,8 +96,8 @@ class UserService:
 
         return {"token": token, "userInfo": self._serialize_user(user)}
 
-    async def get_user_info(self, authorization: str | None) -> dict[str, object]:
-        """校验 Authorization 令牌有效期并返回对应用户公开信息。"""
+    async def validate_token(self, authorization: str | None) -> User:
+        """校验 Authorization 令牌，并返回已认证用户供受保护接口复用。"""
         token = self._normalize_authorization(authorization)
         if not token:
             raise TokenNotFoundError
@@ -111,6 +111,11 @@ class UserService:
         user = await self.repository.get_by_id(user_token.user_id)
         if user is None:
             raise TokenNotFoundError
+        return user
+
+    async def get_user_info(self, authorization: str | None) -> dict[str, object]:
+        """校验令牌后返回当前用户公开信息，兼容已有用户信息调用。"""
+        user = await self.validate_token(authorization)
         return self._serialize_user(user)
 
     @staticmethod
@@ -133,9 +138,9 @@ class UserService:
         max_age = max(0, int((expires_at - datetime.now()).total_seconds()))
         response.set_cookie(
             key="token",
-            value=f"Bearer {token}",
+            value=token,
             max_age=max_age,
-            httponly=True,
+            httponly=False,
             samesite="lax",
             secure=False,
             path="/",
@@ -143,10 +148,15 @@ class UserService:
 
     @staticmethod
     def _serialize_user(user: User) -> dict[str, object]:
-        """转换用户公开字段，避免将密码哈希暴露给调用方。"""
+        """转换除密码外的用户字段，避免将密码哈希暴露给调用方。"""
         return {
             "id": user.id,
             "username": user.username,
+            "nickname": getattr(user, "nickname", None),
+            "avatar": getattr(user, "avatar", None),
+            "gender": getattr(user, "gender", None),
+            "bio": getattr(user, "bio", None),
+            "phone": getattr(user, "phone", None),
             "created_at": user.created_at,
             "updated_at": user.updated_at,
         }
