@@ -1,6 +1,34 @@
-"""收藏模块的 Pydantic 响应模型。"""
+"""收藏模块的 Pydantic 请求与响应模型。"""
 
-from pydantic import BaseModel, Field
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class FavoriteAddRequest(BaseModel):
+    """用户新增新闻收藏时提交的请求体。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    news_id: int = Field(
+        ...,
+        alias="newsId",
+        strict=True,
+        ge=1,
+        description="需要收藏的新闻 ID。",
+        examples=[1],
+    )
+
+
+class FavoriteAddResponse(BaseModel):
+    """新增成功后返回的收藏记录。"""
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+    id: int = Field(description="收藏记录 ID。", examples=[1])
+    user_id: int = Field(alias="userId", description="收藏用户 ID。", examples=[1])
+    news_id: int = Field(alias="newsId", description="被收藏的新闻 ID。", examples=[1])
+    created_at: datetime = Field(description="收藏创建时间。")
 
 
 class FavoriteCheckResponse(BaseModel):

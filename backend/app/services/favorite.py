@@ -4,7 +4,12 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
-from app.repositories.favorite import FavoriteRepository
+from app.models.news import Favorite
+from app.repositories.favorite import DuplicateFavoriteError, FavoriteRepository
+
+
+class FavoriteAlreadyExistsError(Exception):
+    """用户重复收藏同一新闻时抛出的业务异常。"""
 
 
 class FavoriteService:
@@ -25,6 +30,16 @@ class FavoriteService:
                 news_id=news_id,
             )
         }
+
+    async def add_news_favorite(self, *, user_id: int, news_id: int) -> Favorite:
+        """校验未重复收藏后创建记录，并将并发冲突转换为重复收藏业务异常。"""
+        if await self.repository.exists(user_id=user_id, news_id=news_id):
+            raise FavoriteAlreadyExistsError
+
+        try:
+            return await self.repository.create(user_id=user_id, news_id=news_id)
+        except DuplicateFavoriteError as exc:
+            raise FavoriteAlreadyExistsError from exc
 
 
 def get_favorite_service(

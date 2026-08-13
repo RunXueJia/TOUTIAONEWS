@@ -6,8 +6,9 @@ from types import SimpleNamespace
 from fastapi.testclient import TestClient
 
 from app.api.v1.endpoints.favorite import router
-from app.core.dependencies import get_optional_current_user
+from app.core.dependencies import get_current_user, get_optional_current_user
 from app.db.database import get_db
+from app.repositories.favorite import DuplicateFavoriteError
 from app.services.favorite import FavoriteService, get_favorite_service
 from main import app
 
@@ -15,10 +16,29 @@ from main import app
 class FakeFavoriteRepository:
     """为收藏状态测试提供内存仓储。"""
 
-    def __init__(self, *, favorite_news_ids: set[int] | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        favorite_news_ids: set[int] | None = None,
+        raise_duplicate_on_create: bool = False,
+    ) -> None:
         """使用指定的已收藏新闻 ID 初始化仓储。"""
         self.favorite_news_ids = favorite_news_ids or set()
         self.received_user_id: int | None = None
+        self.raise_duplicate_on_create = raise_duplicate_on_create
+
+    async def create(self, *, user_id: int, news_id: int) -> SimpleNamespace:
+        """记录新增收藏操作并返回用于响应序列化的收藏记录。"""
+        self.received_user_id = user_id
+        if self.raise_duplicate_on_create:
+            raise DuplicateFavoriteError
+        self.favorite_news_ids.add(news_id)
+        return SimpleNamespace(
+            id=1,
+            user_id=user_id,
+            news_id=news_id,
+            created_at="2026-08-13T00:00:00",
+        )
 
     async def exists(self, *, user_id: int, news_id: int) -> bool:
         """记录查询用户并返回预置的收藏状态。"""
@@ -105,3 +125,99 @@ def test_check_news_favorite_allows_missing_login_and_validates_news_id() -> Non
     assert anonymous_response.json()["data"] == {"isFavorite": False}
     assert invalid_response.status_code == 200
     assert invalid_response.json()["code"] == 422
+
+
+def test_add_news_favorite_requires_login_and_creates_record() -> None:
+    """新增收藏应要求登录，并使用当前用户 ID 创建收藏记录。"""
+    repository = FakeFavoriteRepository()
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为路由测试注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为路由测试注入内存收藏服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).post("/api/favorite/add", json={"newsId": 5})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json()["code"] == 200
+    assert response.json()["data"]["userId"] == 7
+    assert response.json()["data"]["newsId"] == 5
+    assert repository.received_user_id == 7
+
+
+def test_favorite_add_response_serializes_orm_field_names() -> None:
+    """新增收藏响应应能从 ORM 的下划线字段名读取别名字段。"""
+    from datetime import datetime
+
+    from app.schemas.favorite import FavoriteAddResponse
+
+    favorite = SimpleNamespace(
+        id=1,
+        user_id=7,
+        news_id=5,
+        created_at=datetime(2026, 8, 13, 0, 0, 0),
+    )
+
+    assert FavoriteAddResponse.model_validate(favorite).model_dump(by_alias=True) == {
+        "id": 1,
+        "userId": 7,
+        "newsId": 5,
+        "created_at": datetime(2026, 8, 13, 0, 0, 0),
+    }
+
+
+def test_add_news_favorite_rejects_duplicate() -> None:
+    """同一用户重复收藏同一新闻时应返回“已经收藏”业务错误。"""
+    repository = FakeFavoriteRepository(favorite_news_ids={5})
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为路由测试注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为路由测试注入预置收藏记录的服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).post("/api/favorite/add", json={"newsId": 5})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {"code": 409, "message": "已经收藏", "data": None}
+
+
+def test_add_news_favorite_handles_concurrent_duplicate() -> None:
+    """数据库唯一约束捕获到并发重复写入时也应返回“已经收藏”。"""
+    repository = FakeFavoriteRepository(raise_duplicate_on_create=True)
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为路由测试注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为路由测试注入会模拟唯一约束冲突的服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).post("/api/favorite/add", json={"newsId": 5})
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {"code": 409, "message": "已经收藏", "data": None}

@@ -2,7 +2,8 @@
 
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, Index, String, UniqueConstraint, func
+from sqlalchemy.dialects.mysql import ENUM, INTEGER
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -13,18 +14,23 @@ class User(Base):
 
     __tablename__ = "user"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    __table_args__ = (
+        UniqueConstraint("username", name="username_UNIQUE"),
+        UniqueConstraint("phone", name="phone_UNIQUE"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     nickname: Mapped[str | None] = mapped_column(String(50), nullable=True)
     avatar: Mapped[str | None] = mapped_column(String(255), nullable=True)
     gender: Mapped[str | None] = mapped_column(
-        String(10),
+        ENUM("male", "female", "unknown"),
         nullable=True,
         server_default="unknown",
     )
     bio: Mapped[str | None] = mapped_column(String(500), nullable=True)
-    phone: Mapped[str | None] = mapped_column(String(20), nullable=True, unique=True)
+    phone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
@@ -43,9 +49,14 @@ class UserToken(Base):
 
     __tablename__ = "user_token"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
-    token: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    __table_args__ = (
+        UniqueConstraint("token", name="token_UNIQUE"),
+        Index("fk_user_token_user_idx", "user_id"),
+    )
+
+    id: Mapped[int] = mapped_column(INTEGER(unsigned=True), primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(INTEGER(unsigned=True), nullable=False)
+    token: Mapped[str] = mapped_column(String(255), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
