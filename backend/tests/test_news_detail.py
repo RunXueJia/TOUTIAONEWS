@@ -53,6 +53,8 @@ class _FakeSession:
         self.committed = True
 
     async def refresh(self, instance, attribute_names):
+        assert "views" in attribute_names
+        assert "updated_at" in attribute_names
         if "views" in attribute_names:
             instance.views += 1
 

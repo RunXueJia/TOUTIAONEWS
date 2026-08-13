@@ -49,7 +49,9 @@ class NewsRepository:
             .values(views=News.views + 1)
         )
         await self.db.commit()
-        await self.db.refresh(news, attribute_names=["views"])
+        # 提交会使带有 server/onupdate 的 updated_at 属性过期；异步会话中
+        # 后续序列化不能依赖隐式懒加载，必须在这里显式刷新该字段。
+        await self.db.refresh(news, attribute_names=["views", "updated_at"])
         return news
 
     async def list_related_news(

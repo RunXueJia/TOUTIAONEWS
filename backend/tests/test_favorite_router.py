@@ -1,6 +1,7 @@
 """收藏模块路由与服务测试。"""
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 from fastapi.testclient import TestClient
@@ -26,6 +27,8 @@ class FakeFavoriteRepository:
         self.favorite_news_ids = favorite_news_ids or set()
         self.received_user_id: int | None = None
         self.raise_duplicate_on_create = raise_duplicate_on_create
+        self.deleted_news_id: int | None = None
+        self.favorite_news = []
 
     async def create(self, *, user_id: int, news_id: int) -> SimpleNamespace:
         """记录新增收藏操作并返回用于响应序列化的收藏记录。"""
@@ -44,6 +47,27 @@ class FakeFavoriteRepository:
         """记录查询用户并返回预置的收藏状态。"""
         self.received_user_id = user_id
         return news_id in self.favorite_news_ids
+
+    async def delete(self, *, user_id: int, news_id: int) -> bool:
+        """记录删除收藏操作，并返回是否删除成功。"""
+        self.received_user_id = user_id
+        self.deleted_news_id = news_id
+        if news_id not in self.favorite_news_ids:
+            return False
+        self.favorite_news_ids.remove(news_id)
+        return True
+
+    async def list_favorite_news(
+        self,
+        *,
+        user_id: int,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[SimpleNamespace], int]:
+        """返回预置的收藏新闻分页数据。"""
+        self.received_user_id = user_id
+        start = (page - 1) * page_size
+        return self.favorite_news[start : start + page_size], len(self.favorite_news)
 
 
 def test_favorite_router_allows_anonymous_check() -> None:
@@ -221,3 +245,134 @@ def test_add_news_favorite_handles_concurrent_duplicate() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"code": 409, "message": "已经收藏", "data": None}
+
+
+def test_remove_news_favorite_requires_login_and_deletes_record() -> None:
+    """取消收藏应要求登录，先确认收藏存在后删除当前用户记录。"""
+    repository = FakeFavoriteRepository(favorite_news_ids={5})
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为路由测试注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为路由测试注入内存收藏服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).delete("/api/favorite/remove?newsId=5")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {"code": 200, "message": "取消收藏成功", "data": None}
+    assert repository.received_user_id == 7
+    assert repository.deleted_news_id == 5
+    assert 5 not in repository.favorite_news_ids
+
+
+def test_remove_news_favorite_returns_not_found_when_not_collected() -> None:
+    """当前用户未收藏目标新闻时不得执行删除，并返回业务 404。"""
+    repository = FakeFavoriteRepository()
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为路由测试注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为路由测试注入内存收藏服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).delete("/api/favorite/remove?newsId=5")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {"code": 404, "message": "尚未收藏该新闻", "data": None}
+    assert repository.deleted_news_id is None
+
+
+def test_remove_news_favorite_validates_news_id() -> None:
+    """取消收藏接口应拒绝非正整数新闻 ID。"""
+    response = TestClient(app).delete("/api/favorite/remove?newsId=0")
+
+    assert response.status_code == 200
+    assert response.json()["code"] == 422
+
+
+def test_get_favorite_news_list_requires_login_and_returns_pagination() -> None:
+    """收藏列表应读取当前用户并返回新闻分页结构。"""
+    repository = FakeFavoriteRepository()
+    repository.favorite_news = [
+        SimpleNamespace(
+            id=1,
+            publish_time=datetime(2026, 8, 13, 8, 0),
+            created_at=datetime(2026, 8, 13, 8, 0),
+            updated_at=datetime(2026, 8, 13, 8, 0),
+            title="收藏新闻",
+            description="简介",
+            content="正文",
+            image=None,
+            author="作者",
+            category_id=1,
+            views=3,
+        )
+    ]
+
+    async def fake_current_user() -> SimpleNamespace:
+        """为收藏列表路由注入登录用户。"""
+        return SimpleNamespace(id=7)
+
+    async def fake_service() -> FavoriteService:
+        """为收藏列表路由注入内存服务。"""
+        return FavoriteService(repository)
+
+    app.dependency_overrides[get_current_user] = fake_current_user
+    app.dependency_overrides[get_favorite_service] = fake_service
+    try:
+        response = TestClient(app).get("/api/favorite/list?page=1&pageSize=1")
+    finally:
+        app.dependency_overrides.pop(get_current_user, None)
+        app.dependency_overrides.pop(get_favorite_service, None)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "code": 200,
+        "message": "success",
+        "data": {
+            "list": [
+                {
+                    "id": 1,
+                    "publish_time": "2026-08-13T08:00:00",
+                    "created_at": "2026-08-13T08:00:00",
+                    "updated_at": "2026-08-13T08:00:00",
+                    "category": None,
+                    "title": "收藏新闻",
+                    "description": "简介",
+                    "content": "正文",
+                    "image": None,
+                    "author": "作者",
+                    "category_id": 1,
+                    "views": 3,
+                }
+            ],
+            "total": 1,
+            "hasMore": False,
+        },
+    }
+    assert repository.received_user_id == 7
+
+
+def test_get_favorite_news_list_validates_pagination() -> None:
+    """收藏列表应拒绝非正数页码和超出上限的每页数量。"""
+    client = TestClient(app)
+
+    assert client.get("/api/favorite/list?page=0").json()["code"] == 422
+    assert client.get("/api/favorite/list?pageSize=101").json()["code"] == 422

@@ -1,8 +1,11 @@
 """收藏模块的 Pydantic 请求与响应模型。"""
 
 from datetime import datetime
+from typing import List
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.news import NewsItemResponse
 
 
 class FavoriteAddRequest(BaseModel):
@@ -39,3 +42,19 @@ class FavoriteCheckResponse(BaseModel):
         description="当前登录用户是否已收藏该新闻；未登录时始终为 false。",
         examples=[True],
     )
+
+
+class FavoriteRemoveResponse(BaseModel):
+    """取消新闻收藏接口的统一响应结构。"""
+
+    code: int = Field(description="业务状态码；成功为 200。", examples=[200])
+    message: str = Field(description="操作结果说明。", examples=["取消收藏成功"])
+    data: None = Field(default=None, description="取消收藏不返回业务数据。")
+
+
+class FavoriteListResponse(BaseModel):
+    """当前用户收藏新闻列表的分页结构。"""
+
+    list: List[NewsItemResponse] = Field(description="当前页收藏新闻")
+    total: int = Field(ge=0, description="用户收藏且仍存在的新闻总数")
+    has_more: bool = Field(alias="hasMore", description="是否还有下一页收藏新闻")

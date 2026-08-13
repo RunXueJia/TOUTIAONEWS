@@ -1,10 +1,10 @@
 """收藏模块的数据访问方法。"""
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.news import Favorite
+from app.models.news import Favorite, News
 
 
 class DuplicateFavoriteError(Exception):
@@ -40,3 +40,46 @@ class FavoriteRepository:
 
         await self.db.refresh(favorite)
         return favorite
+
+    async def delete(self, *, user_id: int, news_id: int) -> bool:
+        """删除指定用户对指定新闻的收藏记录，并返回是否实际删除。"""
+        result = await self.db.execute(
+            select(Favorite).where(
+                Favorite.user_id == user_id,
+                Favorite.news_id == news_id,
+            ).limit(1)
+        )
+        favorite = result.scalar_one_or_none()
+        if favorite is None:
+            return False
+
+        await self.db.delete(favorite)
+        await self.db.commit()
+        return True
+
+    async def list_favorite_news(
+        self,
+        *,
+        user_id: int,
+        page: int,
+        page_size: int,
+    ) -> tuple[list[News], int]:
+        """联表查询用户收藏的新闻，并返回当前页记录及总数。"""
+        favorite_filter = Favorite.user_id == user_id
+        total_result = await self.db.execute(
+            select(func.count())
+            .select_from(Favorite)
+            .join(News, News.id == Favorite.news_id)
+            .where(favorite_filter)
+        )
+        total = total_result.scalar_one()
+
+        result = await self.db.execute(
+            select(News)
+            .join(Favorite, Favorite.news_id == News.id)
+            .where(favorite_filter)
+            .order_by(Favorite.created_at.desc(), Favorite.id.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        return list(result.scalars().all()), total
