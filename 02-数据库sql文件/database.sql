@@ -124,6 +124,7 @@ CREATE TABLE IF NOT EXISTS `history` (
   `news_id` INT UNSIGNED NOT NULL COMMENT '新闻ID',
   `view_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '浏览时间',
   PRIMARY KEY (`id`),
+  UNIQUE INDEX `user_news_unique` (`user_id` ASC, `news_id` ASC),
   INDEX `fk_history_user_idx` (`user_id` ASC),
   INDEX `fk_history_news_idx` (`news_id` ASC),
   INDEX `idx_view_time` (`view_time` DESC),

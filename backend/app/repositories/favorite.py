@@ -1,6 +1,6 @@
 """收藏模块的数据访问方法。"""
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -56,6 +56,12 @@ class FavoriteRepository:
         await self.db.delete(favorite)
         await self.db.commit()
         return True
+
+    async def clear(self, *, user_id: int) -> int:
+        """删除指定用户的全部收藏记录，并返回实际删除的记录数。"""
+        result = await self.db.execute(delete(Favorite).where(Favorite.user_id == user_id))
+        await self.db.commit()
+        return int(result.rowcount or 0)
 
     async def list_favorite_news(
         self,

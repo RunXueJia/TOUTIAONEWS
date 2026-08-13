@@ -6,6 +6,12 @@ from app.schemas.news import (
     NewsItemResponse,
     NewsListResponse,
 )
+from app.schemas.history import (
+    HistoryAddRequest,
+    HistoryAddResponse,
+    HistoryDeleteResponse,
+    HistoryListResponse,
+)
 from app.schemas.users import (
     UserInfoResponse,
     UserLoginRequest,
@@ -19,6 +25,10 @@ __all__ = [
     "NewsDetailResponse",
     "NewsItemResponse",
     "NewsListResponse",
+    "HistoryAddRequest",
+    "HistoryAddResponse",
+    "HistoryDeleteResponse",
+    "HistoryListResponse",
     "UserInfoResponse",
     "UserLoginRequest",
     "UserRegisterRequest",

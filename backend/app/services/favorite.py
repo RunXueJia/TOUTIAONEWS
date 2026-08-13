@@ -52,6 +52,10 @@ class FavoriteService:
 
         await self.repository.delete(user_id=user_id, news_id=news_id)
 
+    async def clear_favorites(self, *, user_id: int) -> int:
+        """清空当前登录用户的全部收藏记录，并返回删除的记录数。"""
+        return await self.repository.clear(user_id=user_id)
+
     async def list_favorite_news(
         self,
         *,

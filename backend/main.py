@@ -11,7 +11,7 @@ app = FastAPI(
         {"name": "favorite", "description": "用户收藏相关接口；收藏状态查询支持匿名访问。"},
         {"name": "history", "description": "用户浏览历史模块。"},
         {"name": "news", "description": "新闻相关接口。"},
-        {"name": "users", "description": "用户相关接口。"},
+        {"name": "user", "description": "用户相关接口。"},
     ],
 )
 

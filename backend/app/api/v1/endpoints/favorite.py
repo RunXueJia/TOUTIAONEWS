@@ -131,6 +131,27 @@ async def remove_news_favorite(
     return {"code": 200, "message": "取消收藏成功", "data": None}
 
 
+@router.delete(
+    "/clear",
+    summary="清空我的收藏",
+    description="校验当前登录用户及用户身份后，删除该用户的全部新闻收藏记录。",
+    response_description="清空结果；业务错误通过响应体的 code 返回。",
+    response_model=FavoriteRemoveResponse,
+    responses={
+        200: {"description": "清空成功，或包含业务错误码的响应体。"},
+        401: {"description": "Authorization 令牌不存在或无效。"},
+        402: {"description": "Authorization 令牌已过期。"},
+    },
+)
+async def clear_favorites(
+    current_user: CurrentUser,
+    service: FavoriteService = Depends(get_favorite_service),
+) -> dict[str, object]:
+    """清空当前登录用户的全部新闻收藏记录。"""
+    await service.clear_favorites(user_id=current_user.id)
+    return {"code": 200, "message": "清空收藏成功", "data": None}
+
+
 @router.get(
     "/list",
     summary="获取我的收藏新闻列表",

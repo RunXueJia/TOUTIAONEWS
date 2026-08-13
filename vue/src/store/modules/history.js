@@ -173,7 +173,7 @@ export const useHistoryStore = defineStore('history', {
       
       try {
         console.log('获取浏览历史API：开始请求');
-        const response = await axios.get(`${apiConfig.baseURL}/api/history/list`, { 
+        const response = await axios.get(`${apiConfig.baseURL}/api/history/list?page=1&pageSize=10`, { 
           headers: { 
             Authorization: userStore.token 
           } 
