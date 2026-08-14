@@ -1,6 +1,8 @@
 """异步 Redis 连接与 FastAPI 依赖。"""
 
+import json
 import os
+from typing import Any
 
 from dotenv import load_dotenv
 from fastapi import Request
@@ -25,6 +27,64 @@ def create_redis_client() -> Redis:
         ssl=os.getenv("REDIS_SSL", "false").lower() == "true",
         decode_responses=True,
     )
+
+
+async def set_cache(
+    redis_client: Redis,
+    key: str,
+    value: Any,
+    *,
+    expire_seconds: int | None = 300,
+) -> None:
+    """将可 JSON 序列化的数据写入 Redis 缓存。
+
+    参数 ``expire_seconds`` 为缓存有效期（秒）；传入 ``None`` 时不过期。
+    键为空、过期时间不合法或数据不可序列化时抛出 ``ValueError`` 或 ``TypeError``。
+    """
+    _validate_cache_key(key)
+    _validate_expire_seconds(expire_seconds)
+
+    try:
+        serialized_value = json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError) as exc:
+        raise TypeError("Redis 缓存值必须是可 JSON 序列化的数据。") from exc
+
+    if expire_seconds is None:
+        await redis_client.set(key, serialized_value)
+        return
+
+    await redis_client.set(key, serialized_value, ex=expire_seconds)
+
+
+async def get_cache(redis_client: Redis, key: str) -> Any | None:
+    """读取并反序列化 Redis 缓存；键不存在时返回 ``None``。
+
+    缓存内容不是合法 JSON 时抛出 ``ValueError``，以便调用方发现并清理异常缓存。
+    """
+    _validate_cache_key(key)
+
+    cached_value = await redis_client.get(key)
+    if cached_value is None:
+        return None
+
+    try:
+        return json.loads(cached_value)
+    except (TypeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Redis 缓存键 {key!r} 的内容不是合法 JSON。") from exc
+
+
+def _validate_cache_key(key: str) -> None:
+    """校验缓存键为非空字符串，避免错误地读写无意义的 Redis 键。"""
+    if not isinstance(key, str) or not key.strip():
+        raise ValueError("Redis 缓存键必须是非空字符串。")
+
+
+def _validate_expire_seconds(expire_seconds: int | None) -> None:
+    """校验缓存有效期；空值表示永久缓存，正整数表示秒数。"""
+    if expire_seconds is None:
+        return
+    if isinstance(expire_seconds, bool) or not isinstance(expire_seconds, int) or expire_seconds <= 0:
+        raise ValueError("Redis 缓存有效期必须是正整数秒或 None。")
 
 
 async def close_redis_client(redis_client: Redis) -> None:
