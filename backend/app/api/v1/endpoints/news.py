@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.schemas.news import NewsCategoryResponse, NewsDetailResponse, NewsListResponse
-from app.services.news import NewsService, get_news_service
+from app.services.news import (
+    NewsService,
+    get_news_categories_service,
+    get_news_service,
+)
 
 
 router = APIRouter(prefix="/news", tags=["news"])
@@ -88,7 +92,7 @@ async def get_news_detail(
     response_model=list[NewsCategoryResponse],
 )
 async def get_news_categories(
-    service: NewsService = Depends(get_news_service),
+    service: NewsService = Depends(get_news_categories_service),
 ) -> list[dict[str, object]]:
-    """返回按排序字段排列的新闻分类列表。"""
-    return await service.list_categories()
+    """返回由服务层管理缓存的新闻分类列表。"""
+    return await service.list_cached_categories()

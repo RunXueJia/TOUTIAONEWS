@@ -1,9 +1,12 @@
 """新闻 API 模块的业务服务。"""
 
 from fastapi import Depends
+from fastapi.encoders import jsonable_encoder
+from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
+from app.db.redis import get_cache, get_redis, set_cache
 from app.models.news import News, NewsCategory
 from app.repositories.news import NewsRepository
 
@@ -11,9 +14,13 @@ from app.repositories.news import NewsRepository
 class NewsService:
     """编排新闻业务流程，并避免在路由层暴露数据库查询细节。"""
 
-    def __init__(self, repository: NewsRepository) -> None:
-        """使用新闻仓储初始化服务对象。"""
+    _CATEGORIES_CACHE_KEY = "news:categories"
+    _CATEGORIES_CACHE_EXPIRE_SECONDS = 7200
+
+    def __init__(self, repository: NewsRepository, redis_client: Redis | None = None) -> None:
+        """使用新闻仓储初始化服务对象，并按需接收分类缓存客户端。"""
         self.repository = repository
+        self.redis_client = redis_client
 
     async def list_news(
         self,
@@ -54,6 +61,24 @@ class NewsService:
         categories = await self.repository.list_categories()
         return [self._serialize_category(category) for category in categories]
 
+    async def list_cached_categories(self) -> list[dict[str, object]]:
+        """优先读取 Redis 分类缓存；未命中时查询并缓存 7200 秒。"""
+        if self.redis_client is None:
+            raise RuntimeError("新闻分类服务未配置 Redis 客户端。")
+
+        cached_categories = await get_cache(self.redis_client, self._CATEGORIES_CACHE_KEY)
+        if cached_categories is not None:
+            return cached_categories
+
+        categories = jsonable_encoder(await self.list_categories())
+        await set_cache(
+            self.redis_client,
+            self._CATEGORIES_CACHE_KEY,
+            categories,
+            expire_seconds=self._CATEGORIES_CACHE_EXPIRE_SECONDS,
+        )
+        return categories
+
     @staticmethod
     def _serialize_news(item: News) -> dict[str, object]:
         """将新闻 ORM 对象转换为对外接口字段。"""
@@ -89,3 +114,11 @@ def get_news_service(
 ) -> NewsService:
     """提供一个基于请求级数据库会话的新闻服务实例。"""
     return NewsService(NewsRepository(db))
+
+
+def get_news_categories_service(
+    db: AsyncSession = Depends(get_db),
+    redis_client: Redis = Depends(get_redis),
+) -> NewsService:
+    """提供带 Redis 分类缓存能力的新闻服务实例。"""
+    return NewsService(NewsRepository(db), redis_client)
