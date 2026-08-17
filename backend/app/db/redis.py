@@ -92,6 +92,6 @@ async def close_redis_client(redis_client: Redis) -> None:
     await redis_client.aclose()
 
 
-def get_redis(request: Request) -> Redis:
-    """返回当前应用生命周期内的 Redis 客户端，供路由和服务层依赖注入。"""
-    return request.app.state.redis
+def get_redis(request: Request) -> Redis | None:
+    """返回当前应用生命周期内的 Redis 客户端；未启动生命周期时返回空。"""
+    return getattr(request.app.state, "redis", None)
